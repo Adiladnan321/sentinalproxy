@@ -9,8 +9,6 @@ def scan_and_mask (text: str) -> tuple[str, dict]:
     results = analyzer.analyze(text=text, language='en')
     left_to_right = sorted( results, key=lambda r: r.start )
 
-    results = sorted (results, key=lambda r: r.start, reverse = True)
-
     mapping = {}
     counters = {}
     value_to_token = {}
