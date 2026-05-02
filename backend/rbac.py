@@ -10,7 +10,7 @@ ROLE_MODEL_ACCESS = {
 }
 
 ROLE_QUERY_LIMITS = {
-    "analyst":  1,
+    "analyst":  50,
     "engineer": 200,
     "admin":    -1,
 }
