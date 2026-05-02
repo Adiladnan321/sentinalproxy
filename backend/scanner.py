@@ -1,3 +1,4 @@
+import re
 from presidio_analyzer import AnalyzerEngine
 from presidio_anonymizer import AnonymizerEngine
 
@@ -48,4 +49,7 @@ def scan_and_mask (text: str) -> tuple[str, dict]:
 def restore(text: str, mapping: dict) -> str:
     for token, original_value in mapping.items():
         text = text.replace(token, original_value)
+    
+    # phantom token cleanup
+    text = re.sub(r'\[\[[A-Z_a-z0-9]+\]\]', '[REDACTED]', text)
     return text
