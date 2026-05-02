@@ -29,7 +29,7 @@ export default function ReviewBlock({ prompt, data, onConfirm, onCancel, onReloa
     const regex = new RegExp(escapedToken.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
     previewHtml = previewHtml.replace(
       regex, 
-      `<span class="review-highlight">${escapedOriginal} <span class="review-token-tag">${escapedToken}</span></span>`
+      `<span class="review-highlight">${escapedOriginal} <span class="review-token-tag">${escapedToken}</span><button class="review-remove-mask" data-original="${escapedOriginal}" title="Don't mask this">✕</button></span>`
     );
   });
 
@@ -37,6 +37,29 @@ export default function ReviewBlock({ prompt, data, onConfirm, onCancel, onReloa
     const text = window.getSelection().toString().trim();
     if (text) {
       setSelection(text);
+    }
+  }
+
+  async function handleRemoveRule(originalValue) {
+    setLoading(true);
+    try {
+      // Mark as "Never Mask"
+      await sendFeedback(auth.token, originalValue, false, "CUSTOM");
+      if (onReload) await onReload();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleContainerClick(e) {
+    const removeBtn = e.target.closest('.review-remove-mask');
+    if (removeBtn) {
+      const original = removeBtn.getAttribute('data-original');
+      if (original) {
+        handleRemoveRule(original);
+      }
     }
   }
 
@@ -59,13 +82,14 @@ export default function ReviewBlock({ prompt, data, onConfirm, onCancel, onReloa
       <div className="review-block-header">
         <h3 className="review-block-title">Review & Mask</h3>
         <p className="review-instruction">
-          Highlight any unrecognized sensitive text below to manually mask it.
+          Highlight any unrecognized sensitive text below to manually mask it, or click the ✕ on an existing mask to unmask it.
         </p>
       </div>
       
       <div 
         className="review-content-area" 
         onMouseUp={handleSelection}
+        onClick={handleContainerClick}
         dangerouslySetInnerHTML={{ __html: previewHtml }}
       />
 

@@ -4,6 +4,8 @@ import LoginPage from "./pages/LoginPage";
 import ChatPage from "./pages/ChatPage";
 import AdminPage from "./pages/AdminPage";
 
+import ExceptionsPage from "./pages/ExceptionsPage";
+
 function ProtectedRoute({ children, adminOnly = false }) {
   const { auth } = useAuth();
   if (!auth) return <Navigate to="/login" replace />;
@@ -25,6 +27,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <ChatPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/exceptions"
+        element={
+          <ProtectedRoute>
+            <ExceptionsPage />
           </ProtectedRoute>
         }
       />

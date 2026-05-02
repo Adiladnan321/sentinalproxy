@@ -145,14 +145,20 @@ flowchart TD
     F --> G[" Replace right-to-left<br/>(preserves character positions)"]
     G --> H[" Masked Prompt<br/>'Contact [[PERSON_1]] at [[EMAIL_ADDRESS_1]]'"]
 
-    H --> I[" Send to Gemini"]
-    I --> J["Raw LLM Reply<br/>'Sure, I'll email [[EMAIL_ADDRESS_1]]...'"]
-    J --> K[" Restore: Replace tokens with originals"]
-    K --> L[" Phantom Cleanup<br/>Any unreferenced tokens → [REDACTED]"]
-    L --> M[" Final Reply<br/>'Sure, I'll email john@acme.com...'"]
-
+    H --> I[" Interactive Review Block<br/>User can highlight text to add forced masks"]
+    I -->|User Confirms| J[" Send to Gemini"]
+    J --> K["Raw LLM Reply<br/>'Sure, I'll email [[EMAIL_ADDRESS_1]]...'"]
+    K --> L[" Restore: Replace tokens with originals"]
+    L --> M[" Phantom Cleanup<br/>Any unreferenced tokens → [REDACTED]"]
+    M --> N[" Final Reply<br/>'Sure, I'll email john@acme.com...'"]
 
 ```
+
+### Custom Rules & Interactive Review
+
+Before any prompt is sent to the LLM, users enter an **Interactive Review Phase**. If the PII scanner misses a sensitive term, the user can highlight it directly in the preview, select an entity type (e.g., `PERSON`, `ORG`, `CUSTOM`), and create a **Forced Masking Rule**. 
+
+These custom rules are stored in the database per-user. The pipeline applies these forced masks **before** running the standard Presidio NLP analyzer, ensuring user preferences override the default models.
 
 ### Why Replace Right-to-Left?
 
@@ -230,12 +236,17 @@ sequenceDiagram
 
 ### Chat Interface
 - **ChatGPT-style UI** — Clean, minimal chat with message bubbles
+- **Interactive Scan & Review Flow** — Prompts are scanned and displayed in a review block *before* hitting the LLM. Users can highlight unmasked text to manually mask it on the fly.
+- **Custom Masking Rules** — Specify entity types (e.g. `PERSON`, `ORG`) for custom rules that the system will always remember for you.
 - **Real-time PII masking visualization** — Animated pipeline showing Scanning → Masking → Processing → Remapping
 - **Masking details per message** — See exactly what was masked, the token mapping, and the raw LLM reply
 - **Right drawer panel** — Deep-dive into masking details: summary, token mapping table, masked prompt, raw LLM reply
 - **Model selector** — Switch between RBAC-permitted Gemini models
 - **Query limit counter** — Live display of remaining daily queries
 - **Error handling** — Dismissible error banners for rate limits, model access denials, and API failures
+
+### Exceptions Management
+- **My Rules Page** — Dedicated UI to manage your custom "Always Mask" and "Never Mask" rules.
 
 ### Security
 - **JWT authentication** — Stateless tokens with 60-minute expiry
@@ -369,9 +380,25 @@ Fetch the authenticated user's profile, available models, and usage.
 }
 ```
 
+### `POST /scan`
+
+Scan a prompt against Presidio and custom user rules, returning the masked prompt without hitting the LLM.
+
+```json
+// Request
+{ "prompt": "Email john@acme.com about the project" }
+
+// Response 200
+{
+  "masked_prompt": "Email [[EMAIL_ADDRESS_1]] about the project",
+  "mapping": { "[[EMAIL_ADDRESS_1]]": "john@acme.com" },
+  "pii_detected": true
+}
+```
+
 ### `POST /chat`
 
-Send a prompt through the PII masking pipeline. Returns the restored reply along with full masking details.
+Send a confirmed prompt through the PII masking pipeline to the LLM. Returns the restored reply along with full masking details.
 
 ```json
 // Request (requires Bearer token)
@@ -387,6 +414,23 @@ Send a prompt through the PII masking pipeline. Returns the restored reply along
   "raw_llm_reply": "Sure, I'll draft an email to [[EMAIL_ADDRESS_1]] about the project."
 }
 ```
+
+### `POST /feedback`
+
+Create or update a custom masking rule for the authenticated user.
+
+```json
+// Request
+{ 
+  "value": "Acme Corp", 
+  "should_mask": true, 
+  "entity_type": "ORG" 
+}
+```
+
+### `GET /exceptions` & `DELETE /exceptions/{value}`
+
+Fetch or remove the user's custom masking rules.
 
 ### `GET /export?fmt=json|csv`
 
@@ -502,33 +546,30 @@ graph TD
         VIZ["Inline Masking Visualizer:<br/>Token mapping table"]
     end
 
-    subgraph Processing["Processing Animation"]
-        S1["🔍 Scanning for PII..."]
-        S2["🛡️ Masking sensitive data..."]
-        S3["🤖 Processing with LLM..."]
-        S4["📤 Remapping tokens..."]
-    end
-
-    subgraph InputArea["Chat Input"]
+    subgraph InputArea["Chat Input & Review"]
         TEXTAREA["Auto-resize textarea"]
-        SEND["Send button"]
+        SEND["Scan Button"]
+        REVIEW["Review Block:<br/>Interactive Text Selection<br/>Entity Type Dropdown"]
     end
 
     subgraph Drawer["Right Drawer Panel"]
         SUMMARY["Summary: model, PII count"]
-        MAPPING["Token Mapping Table"]
+        MAPPING["Token Mapping Table<br/>+ Thumbs Up/Down Feedback"]
         MASKED_P["Masked Prompt"]
         RAW_R["Raw LLM Reply"]
     end
 
     style TopBar fill:#12121a,stroke:#6c63ff,color:#e8e8ed
     style ChatArea fill:#0a0a0f,stroke:#2a2a3c,color:#e8e8ed
-    style Processing fill:#12121a,stroke:#f59e0b,color:#e8e8ed
     style InputArea fill:#12121a,stroke:#06b6d4,color:#e8e8ed
     style Drawer fill:#12121a,stroke:#8b5cf6,color:#e8e8ed
 ```
 
-### 3. Admin Dashboard (`/admin`)
+### 3. My Rules (`/exceptions`)
+
+A dedicated grid dashboard allowing users to view and delete all of their custom "Always Mask" and "Never Mask" rules.
+
+### 4. Admin Dashboard (`/admin`)
 
 Accessible only to users with the `admin` role. Features:
 - **4 stat cards** — Total queries, PII detections, success rate, avg response time

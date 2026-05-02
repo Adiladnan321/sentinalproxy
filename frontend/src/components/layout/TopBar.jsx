@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { LogOut, LayoutDashboard, Zap } from "lucide-react";
+import { LogOut, LayoutDashboard, Zap, Shield } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import ModelSelector from "./ModelSelector";
 
@@ -34,6 +34,11 @@ export default function TopBar({ profile, selectedModel, onModelChange }) {
           <span className="topbar-limit-count">{limitText}</span>
           <span>queries</span>
         </div>
+
+        <Link to="/exceptions" className="topbar-admin-btn" style={{ color: "var(--text-secondary)", borderColor: "var(--border-default)" }}>
+          <Shield size={14} />
+          My Rules
+        </Link>
 
         {auth?.role === "admin" && (
           <Link to="/admin" className="topbar-admin-btn">
