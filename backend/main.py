@@ -168,11 +168,16 @@ async def feedback(
 async def list_exceptions(
     current_user: dict = Depends(get_current_user)
 ):
-    exceptions = get_user_exceptions(current_user["user_id"])
-    return {"exceptions": [{"value": k, "should_mask": v["should_mask"], "entity_type": v["entity_type"]} for k, v in exceptions.items()]}
+    conn = get_connection()
+    rows = conn.execute(
+        "SELECT value, should_mask, entity_type FROM user_exceptions WHERE user_id = ?",
+        (current_user["user_id"],)
+    ).fetchall()
+    conn.close()
+    return {"exceptions": [{"value": row["value"], "should_mask": bool(row["should_mask"]), "entity_type": row["entity_type"]} for row in rows]}
 
 
-@app.delete("/exceptions/{value}")
+@app.delete("/exceptions/{value:path}")
 async def delete_exception(
     value: str,
     current_user: dict = Depends(get_current_user)
