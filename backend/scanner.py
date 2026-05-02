@@ -4,9 +4,22 @@ from presidio_anonymizer import AnonymizerEngine
 
 analyzer = AnalyzerEngine()
 anonymizer = AnonymizerEngine()
-
+ENTITIES_TO_MASK = [
+    "PERSON",
+    "EMAIL_ADDRESS",
+    "PHONE_NUMBER",
+    "CREDIT_CARD",
+    "IBAN_CODE",
+    "NRP",
+    "MEDICAL_LICENSE",
+]
 def scan_and_mask (text: str) -> tuple[str, dict]:
-    results = analyzer.analyze(text=text, language='en')
+    results = analyzer.analyze(
+        text=text,
+        language='en',
+        score_threshold=0.3,
+        entities=ENTITIES_TO_MASK
+    )
     left_to_right = sorted( results, key=lambda r: r.start )
 
     mapping = {}
