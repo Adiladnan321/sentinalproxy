@@ -1,17 +1,18 @@
 import time
+from datetime import date
 from fastapi import FastAPI, Depends, HTTPException, status, Query
 from fastapi.responses import PlainTextResponse
 from dotenv import load_dotenv
 
 load_dotenv()
 
-from models import ChatRequest, ChatResponse, LoginRequest, LoginResponse
+from models import ChatRequest, ChatResponse, LoginRequest, LoginResponse, UserProfile
 from llm import call_llm
 from scanner import scan_and_mask, restore
 from auth import create_token, get_current_user
-from rbac import check_model_access, check_rate_limit
-from users import get_user, verify_password
-from database import init_db
+from rbac import check_model_access, check_rate_limit, ROLE_MODEL_ACCESS, ROLE_QUERY_LIMITS
+from users import get_user, verify_password, USERS
+from database import init_db, get_connection
 from audit import log_request, export_logs
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -20,11 +21,14 @@ init_db()   # creates the table if it doesn't exist
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=["http://localhost:5173", "http://localhost:5174", "http://localhost:5175"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# ── Auth ─────────────────────────────────────────────────────
 
 @app.post("/login", response_model=LoginResponse)
 async def login(request: LoginRequest):
@@ -34,9 +38,47 @@ async def login(request: LoginRequest):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password"
         )
-    token = create_token(user["user_id"], user["role"])
-    return LoginResponse(access_token=token)
+    token = create_token(request.username, user["user_id"], user["role"])
+    return LoginResponse(
+        access_token=token,
+        username=request.username,
+        role=user["role"],
+        user_id=user["user_id"],
+    )
 
+
+# ── User Profile ────────────────────────────────────────────
+
+@app.get("/me", response_model=UserProfile)
+async def me(current_user: dict = Depends(get_current_user)):
+    role = current_user["role"]
+    user_id = current_user["user_id"]
+    username = current_user.get("username", user_id)
+
+    limit = ROLE_QUERY_LIMITS.get(role, 0)
+    today = str(date.today())
+
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT date, count FROM rate_limits WHERE user_id = ?", (user_id,)
+    ).fetchone()
+    conn.close()
+
+    queries_used = 0
+    if row and row["date"] == today:
+        queries_used = row["count"]
+
+    return UserProfile(
+        user_id=user_id,
+        username=username,
+        role=role,
+        allowed_models=ROLE_MODEL_ACCESS.get(role, []),
+        query_limit=limit,
+        queries_used_today=queries_used,
+    )
+
+
+# ── Chat (with masking details) ─────────────────────────────
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat(
@@ -64,7 +106,14 @@ async def chat(
             status="success",
             response_time_ms=response_time
         )
-        return ChatResponse(reply=reply, model_used=request.model)
+        return ChatResponse(
+            reply=reply,
+            model_used=request.model,
+            masked_prompt=masked_prompt,
+            pii_detected=pii_found,
+            mapping=mapping,
+            raw_llm_reply=raw_reply,
+        )
 
     except Exception as e:
         response_time = int((time.time() - start) * 1000)
@@ -79,6 +128,8 @@ async def chat(
         )
         raise HTTPException(status_code=500, detail=str(e))
 
+
+# ── Export (admin only) ──────────────────────────────────────
 
 @app.get("/export")
 async def export(

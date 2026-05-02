@@ -13,9 +13,10 @@ TOKEN_EXPIRE_MINUTES = 60
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login")
 
-def create_token(user_id: str, role: str) -> str:
+def create_token(username: str, user_id: str, role: str) -> str:
     payload = {
         "sub": user_id,
+        "username": username,
         "role": role,
         "exp": datetime.now(timezone.utc) + timedelta(minutes=TOKEN_EXPIRE_MINUTES)
     }
@@ -24,7 +25,11 @@ def create_token(user_id: str, role: str) -> str:
 def get_current_user(token: str = Depends(oauth2_scheme)) -> dict:
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        return {"user_id": payload["sub"], "role": payload["role"]}
+        return {
+            "user_id": payload["sub"],
+            "username": payload.get("username", payload["sub"]),
+            "role": payload["role"],
+        }
     except JWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
