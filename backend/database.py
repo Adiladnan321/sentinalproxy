@@ -25,5 +25,12 @@ def init_db():
             response_time_ms INTEGER NOT NULL
         )
     """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS rate_limits (
+            user_id TEXT PRIMARY KEY,
+            date    TEXT NOT NULL,
+            count   INTEGER NOT NULL
+        )
+    """)
     conn.commit()
     conn.close()

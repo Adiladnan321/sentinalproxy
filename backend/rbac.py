@@ -1,7 +1,7 @@
 from datetime import date
 
 from fastapi import HTTPException, status
-
+from database import get_connection
 
 ROLE_MODEL_ACCESS = {
     "analyst":  [ "gemini-3.1-pro-preview","gemini-2.5-pro","gemini-2.5-flash-lite"],
@@ -14,8 +14,6 @@ ROLE_QUERY_LIMITS = {
     "engineer": 200,
     "admin":    -1,
 }
-
-_query_counts: dict={}
 
 def check_model_access( role: str, model: str) -> bool:
     allowed = ROLE_MODEL_ACCESS.get(role, [])
@@ -32,19 +30,33 @@ def check_rate_limit(user_id: str, role: str) -> bool:
         return 
     
     today = str(date.today())
-    record = _query_counts.get(user_id)
+    conn = get_connection()
+    
+    row = conn.execute(
+        "SELECT date, count FROM rate_limits WHERE user_id = ?", (user_id,)
+    ).fetchone()
 
-    if record is None or record["date"] != today:
-        _query_counts[user_id] = {"date": today, "count": 0}
-
-    current = _query_counts[user_id]["count"]
-
-    if current >= limit:
-        raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail=f"Role '{role}' has exceeded daily query limit of {limit}"
+    if row is None or row["date"] != today:
+        current = 0
+        conn.execute(
+            "INSERT OR REPLACE INTO rate_limits (user_id, date, count) VALUES (?, ?, ?)",
+            (user_id, today, current + 1)
         )
-    _query_counts[user_id]["count"] += 1
+    else:
+        current = row["count"]
+        if current >= limit:
+            conn.close()
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=f"Role '{role}' has exceeded daily query limit of {limit}"
+            )
+        conn.execute(
+            "UPDATE rate_limits SET count = count + 1 WHERE user_id = ?",
+            (user_id,)
+        )
+    
+    conn.commit()
+    conn.close()
 
 def get_query_limit(role: str) -> int:
     return ROLE_QUERY_LIMITS.get(role, 0)
