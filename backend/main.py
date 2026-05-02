@@ -48,20 +48,11 @@ async def chat(
 
     start = time.time()                                    
     masked_prompt, mapping = scan_and_mask(request.prompt)
-    print("--- MASKED PROMPT ---")
-    print(masked_prompt)
-    print("--- MAPPING ---")
-    print(mapping)
-    print("---------------------")
     pii_found = len(mapping) > 0                          
 
     try:
         raw_reply = call_llm(masked_prompt, request.model)
-        print("--- RAW LLM REPLY (before restore) ---")
-        print(raw_reply)
-        print("---------------------------------------")
         reply = restore(raw_reply, mapping)
-        print(reply, "reply")
         response_time = int((time.time() - start) * 1000)
 
         log_request(                                       
