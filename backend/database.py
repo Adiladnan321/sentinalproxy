@@ -32,5 +32,20 @@ def init_db():
             count   INTEGER NOT NULL
         )
     """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS user_exceptions (
+            user_id     TEXT NOT NULL,
+            value       TEXT NOT NULL,
+            should_mask INTEGER NOT NULL,
+            entity_type TEXT DEFAULT 'CUSTOM',
+            PRIMARY KEY (user_id, value)
+        )
+    """)
+    # Ensure existing dbs get the column
+    try:
+        conn.execute("ALTER TABLE user_exceptions ADD COLUMN entity_type TEXT DEFAULT 'CUSTOM'")
+    except sqlite3.OperationalError:
+        pass
+    
     conn.commit()
     conn.close()

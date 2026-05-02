@@ -1,0 +1,226 @@
+/* ═══════════════════════════════════════════════════════════
+   ExceptionsPage — Masking Rules Management
+   ═══════════════════════════════════════════════════════════ */
+
+.exceptions-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--bg-primary);
+}
+
+.exceptions-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-lg);
+  height: 56px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+}
+
+.exceptions-back {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: var(--radius-md);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  transition: all var(--transition-fast);
+  text-decoration: none;
+}
+
+.exceptions-back:hover {
+  border-color: var(--accent);
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.exceptions-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.exceptions-count {
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  background: var(--accent-subtle);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid rgba(108, 99, 255, 0.2);
+}
+
+.exceptions-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-xl);
+  max-width: 800px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.exceptions-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-md);
+  padding: var(--space-2xl);
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.exceptions-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-md);
+  padding: 80px var(--space-xl);
+  text-align: center;
+  color: var(--text-muted);
+  animation: fadeIn 0.5s ease-out;
+}
+
+.exceptions-empty-icon {
+  width: 72px;
+  height: 72px;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+
+.exceptions-empty h2 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.exceptions-empty p {
+  font-size: 13px;
+  max-width: 380px;
+  line-height: 1.7;
+}
+
+.exceptions-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xl);
+  animation: fadeIn 0.3s ease-out;
+}
+
+.exceptions-section-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: var(--space-md);
+}
+
+.exceptions-section-count {
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background: var(--bg-tertiary);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.exceptions-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--space-md);
+}
+
+.exception-card {
+  position: relative;
+  padding: var(--space-md);
+  border-radius: var(--radius-md);
+  border: 1px solid;
+  transition: all var(--transition-fast);
+  animation: fadeIn 0.3s ease-out;
+}
+
+.exception-card.never-mask {
+  background: rgba(34, 197, 94, 0.04);
+  border-color: rgba(34, 197, 94, 0.15);
+}
+
+.exception-card.never-mask:hover {
+  border-color: rgba(34, 197, 94, 0.35);
+  background: rgba(34, 197, 94, 0.08);
+}
+
+.exception-card.always-mask {
+  background: rgba(245, 158, 11, 0.04);
+  border-color: rgba(245, 158, 11, 0.15);
+}
+
+.exception-card.always-mask:hover {
+  border-color: rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.exception-value {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+  word-break: break-word;
+}
+
+.exception-label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.exception-delete {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-default);
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  opacity: 0;
+}
+
+.exception-card:hover .exception-delete {
+  opacity: 1;
+}
+
+.exception-delete:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: var(--danger-bg);
+}
+
+.exception-delete:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

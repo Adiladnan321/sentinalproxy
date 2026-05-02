@@ -1,10 +1,33 @@
-import { X, ArrowRight, Shield, FileText, Code } from "lucide-react";
+import { useState } from "react";
+import { X, ArrowRight, Shield, FileText, Code, ThumbsUp, ThumbsDown, Check, Loader2 } from "lucide-react";
+import { useAuth } from "../../context/AuthContext";
+import { sendFeedback } from "../../api/client";
 
 export default function MaskingDrawer({ maskData, onClose }) {
   if (!maskData) return null;
 
+  const { auth } = useAuth();
   const { mapping, masked_prompt, raw_llm_reply, model_used, pii_detected } = maskData;
   const entries = Object.entries(mapping);
+
+  const [feedbackStates, setFeedbackStates] = useState({});
+
+  async function handleFeedback(value, shouldMask) {
+    const key = value;
+    setFeedbackStates((prev) => ({ ...prev, [key]: { loading: true } }));
+    try {
+      await sendFeedback(auth.token, value, shouldMask);
+      setFeedbackStates((prev) => ({
+        ...prev,
+        [key]: { saved: true, shouldMask },
+      }));
+    } catch {
+      setFeedbackStates((prev) => ({
+        ...prev,
+        [key]: { error: true },
+      }));
+    }
+  }
 
   return (
     <>
@@ -43,20 +66,65 @@ export default function MaskingDrawer({ maskData, onClose }) {
             </div>
           </div>
 
-          {/* Mapping Table */}
+          {/* Mapping Table with Feedback */}
           {entries.length > 0 && (
             <div className="drawer-section">
               <div className="drawer-section-title">
-                <Code size={14} /> Token Mapping
+                <Code size={14} /> Token Mapping & Feedback
               </div>
               <div className="drawer-card">
-                {entries.map(([token, original]) => (
-                  <div className="drawer-mapping-row" key={token}>
-                    <span className="mask-original">{original}</span>
-                    <span className="drawer-mapping-arrow"><ArrowRight size={12} /></span>
-                    <span className="mask-token">{token}</span>
-                  </div>
-                ))}
+                {entries.map(([token, original]) => {
+                  const state = feedbackStates[original];
+                  return (
+                    <div className="drawer-mapping-row-feedback" key={token}>
+                      <div className="drawer-mapping-top">
+                        <span className="mask-original">{original}</span>
+                        <span className="drawer-mapping-arrow"><ArrowRight size={12} /></span>
+                        <span className="mask-token">{token}</span>
+                      </div>
+                      <div className="drawer-feedback-actions">
+                        {state?.saved ? (
+                          <div className="feedback-saved">
+                            <Check size={12} />
+                            <span>
+                              {state.shouldMask
+                                ? "Will always mask"
+                                : "Won't mask next time"}
+                            </span>
+                          </div>
+                        ) : state?.loading ? (
+                          <div className="feedback-loading">
+                            <Loader2 size={12} className="feedback-spinner" />
+                            <span>Saving…</span>
+                          </div>
+                        ) : state?.error ? (
+                          <div className="feedback-error">
+                            <span>Failed — try again</span>
+                          </div>
+                        ) : (
+                          <>
+                            <button
+                              className="feedback-btn never-mask"
+                              onClick={() => handleFeedback(original, false)}
+                              title="Don't mask this value in future prompts"
+                            >
+                              <ThumbsDown size={11} />
+                              <span>Don't Mask</span>
+                            </button>
+                            <button
+                              className="feedback-btn always-mask"
+                              onClick={() => handleFeedback(original, true)}
+                              title="Always mask this value"
+                            >
+                              <ThumbsUp size={11} />
+                              <span>Always Mask</span>
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

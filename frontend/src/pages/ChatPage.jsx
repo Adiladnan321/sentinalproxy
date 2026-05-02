@@ -2,12 +2,13 @@ import { useState, useRef, useEffect } from "react";
 import { Shield, AlertCircle, X } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useProfile } from "../hooks/useProfile";
-import { sendChat } from "../api/client";
+import { sendChat, scanPrompt } from "../api/client";
 import TopBar from "../components/layout/TopBar";
 import ChatInput from "../components/chat/ChatInput";
 import MessageBubble from "../components/chat/MessageBubble";
 import MaskingDrawer from "../components/chat/MaskingDrawer";
 import ProcessingVisualizer from "../components/chat/ProcessingVisualizer";
+import ReviewBlock from "../components/chat/ReviewBlock";
 import "../styles/chat.css";
 
 export default function ChatPage() {
@@ -20,31 +21,52 @@ export default function ChatPage() {
   const [selectedModel, setSelectedModel] = useState("");
   const [drawerData, setDrawerData] = useState(null);
 
+  // Review state
+  const [pendingPrompt, setPendingPrompt] = useState(null);
+  const [reviewData, setReviewData] = useState(null);
+
   const scrollRef = useRef(null);
 
-  /* Set default model when profile loads */
   useEffect(() => {
     if (profile?.allowed_models?.length && !selectedModel) {
       setSelectedModel(profile.allowed_models[0]);
     }
   }, [profile, selectedModel]);
 
-  /* Auto-scroll to bottom */
   useEffect(() => {
     scrollRef.current?.scrollTo({
       top: scrollRef.current.scrollHeight,
       behavior: "smooth",
     });
-  }, [messages, loading]);
+  }, [messages, loading, reviewData]);
 
-  async function handleSend(prompt) {
+  // Step 1: Scan
+  async function handleScan(prompt) {
     setError(null);
-    const userMsg = { id: Date.now(), role: "user", text: prompt };
+    setLoading(true);
+    setReviewData(null);
+    try {
+      const data = await scanPrompt(auth.token, prompt);
+      setPendingPrompt(prompt);
+      setReviewData(data);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Step 2: Confirm and send to LLM
+  async function handleConfirmSend(promptToConfirm) {
+    setReviewData(null);
+    setPendingPrompt(null);
+    
+    const userMsg = { id: Date.now(), role: "user", text: promptToConfirm };
     setMessages((prev) => [...prev, userMsg]);
     setLoading(true);
 
     try {
-      const data = await sendChat(auth.token, prompt, selectedModel);
+      const data = await sendChat(auth.token, promptToConfirm, selectedModel);
       const assistantMsg = {
         id: Date.now() + 1,
         role: "assistant",
@@ -74,7 +96,6 @@ export default function ChatPage() {
         onModelChange={setSelectedModel}
       />
 
-      {/* Error banner */}
       {error && (
         <div className="chat-error">
           <AlertCircle size={16} />
@@ -85,9 +106,8 @@ export default function ChatPage() {
         </div>
       )}
 
-      {/* Messages area */}
       <div className="chat-messages" ref={scrollRef}>
-        {messages.length === 0 && !loading && (
+        {messages.length === 0 && !loading && !reviewData && (
           <div className="chat-empty">
             <div className="chat-empty-icon">
               <Shield size={28} />
@@ -109,12 +129,28 @@ export default function ChatPage() {
           />
         ))}
 
-        {loading && <ProcessingVisualizer />}
+        {loading && !reviewData && <ProcessingVisualizer />}
+
+        {reviewData && (
+          <ReviewBlock 
+            prompt={pendingPrompt}
+            data={reviewData}
+            onConfirm={handleConfirmSend}
+            onCancel={() => {
+              setPendingPrompt(null);
+              setReviewData(null);
+            }}
+            onReload={async () => {
+              // Rescan using the pending prompt
+              const data = await scanPrompt(auth.token, pendingPrompt);
+              setReviewData(data);
+            }}
+          />
+        )}
       </div>
 
-      <ChatInput onSend={handleSend} disabled={loading} />
+      <ChatInput onSend={handleScan} disabled={loading || !!reviewData} />
 
-      {/* Right drawer */}
       {drawerData && (
         <MaskingDrawer
           maskData={drawerData}

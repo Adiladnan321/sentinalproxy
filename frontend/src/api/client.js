@@ -75,3 +75,59 @@ export async function downloadCSV(token) {
   a.click();
   URL.revokeObjectURL(url);
 }
+
+/**
+ * Submit feedback — mark a value to always or never mask.
+ */
+export async function sendFeedback(token, value, shouldMask, entityType = "CUSTOM") {
+  const res = await fetch(`${BASE}/feedback`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ value, should_mask: shouldMask, entity_type: entityType }),
+  });
+  if (!res.ok) throw new Error("Failed to save feedback");
+  return res.json();
+}
+
+/**
+ * Scan a prompt and return the masked version and mappings.
+ */
+export async function scanPrompt(token, prompt) {
+  const res = await fetch(`${BASE}/scan`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ prompt }),
+  });
+  if (!res.ok) throw new Error("Failed to scan prompt");
+  return res.json();
+}
+
+/**
+ * Fetch the current user's exception list.
+ */
+export async function fetchExceptions(token) {
+  const res = await fetch(`${BASE}/exceptions`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error("Failed to fetch exceptions");
+  return res.json();
+}
+
+/**
+ * Delete a single exception rule.
+ */
+export async function deleteException(token, value) {
+  const res = await fetch(`${BASE}/exceptions/${encodeURIComponent(value)}`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error("Failed to delete exception");
+  return res.json();
+}
+

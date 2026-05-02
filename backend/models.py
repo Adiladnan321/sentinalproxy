@@ -36,3 +36,19 @@ class UserProfile(BaseModel):
     allowed_models: list[str]
     query_limit: int          # -1 means unlimited
     queries_used_today: int
+
+
+class FeedbackRequest(BaseModel):
+    value: str          # the original word e.g. "Dubai"
+    should_mask: bool   # false = never mask this again
+    entity_type: str = "CUSTOM"
+
+
+class ScanRequest(BaseModel):
+    prompt: str
+
+
+class ScanResponse(BaseModel):
+    masked_prompt: str
+    mapping: dict
+    pii_detected: bool

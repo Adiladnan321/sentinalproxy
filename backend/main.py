@@ -6,9 +6,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from models import ChatRequest, ChatResponse, LoginRequest, LoginResponse, UserProfile
+from models import ChatRequest, ChatResponse, LoginRequest, LoginResponse, UserProfile, FeedbackRequest, ScanRequest, ScanResponse
 from llm import call_llm
-from scanner import scan_and_mask, restore
+from scanner import scan_and_mask, restore, get_user_exceptions
 from auth import create_token, get_current_user
 from rbac import check_model_access, check_rate_limit, ROLE_MODEL_ACCESS, ROLE_QUERY_LIMITS
 from users import get_user, verify_password, USERS
@@ -78,7 +78,21 @@ async def me(current_user: dict = Depends(get_current_user)):
     )
 
 
-# ── Chat (with masking details) ─────────────────────────────
+# ── Chat & Scanning ──────────────────────────────────────────
+
+@app.post("/scan", response_model=ScanResponse)
+async def scan(
+    request: ScanRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    exceptions = get_user_exceptions(current_user["user_id"])
+    masked_prompt, mapping = scan_and_mask(request.prompt, exceptions)
+    return ScanResponse(
+        masked_prompt=masked_prompt,
+        mapping=mapping,
+        pii_detected=len(mapping) > 0
+    )
+
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat(
@@ -88,8 +102,9 @@ async def chat(
     check_model_access(current_user["role"], request.model)
     check_rate_limit(current_user["user_id"], current_user["role"])
 
-    start = time.time()                                    
-    masked_prompt, mapping = scan_and_mask(request.prompt)
+    start = time.time()
+    exceptions = get_user_exceptions(current_user["user_id"])
+    masked_prompt, mapping = scan_and_mask(request.prompt, exceptions)
     pii_found = len(mapping) > 0                          
 
     try:
@@ -127,6 +142,49 @@ async def chat(
             response_time_ms=response_time
         )
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Feedback (user exceptions) ───────────────────────────────
+
+@app.post("/feedback")
+async def feedback(
+    body: FeedbackRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    conn = get_connection()
+    conn.execute("""
+        INSERT INTO user_exceptions (user_id, value, should_mask, entity_type)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(user_id, value) DO UPDATE SET 
+            should_mask=excluded.should_mask,
+            entity_type=excluded.entity_type
+    """, (current_user["user_id"], body.value, int(body.should_mask), body.entity_type))
+    conn.commit()
+    conn.close()
+    return {"status": "saved"}
+
+
+@app.get("/exceptions")
+async def list_exceptions(
+    current_user: dict = Depends(get_current_user)
+):
+    exceptions = get_user_exceptions(current_user["user_id"])
+    return {"exceptions": [{"value": k, "should_mask": v["should_mask"], "entity_type": v["entity_type"]} for k, v in exceptions.items()]}
+
+
+@app.delete("/exceptions/{value}")
+async def delete_exception(
+    value: str,
+    current_user: dict = Depends(get_current_user)
+):
+    conn = get_connection()
+    conn.execute(
+        "DELETE FROM user_exceptions WHERE user_id = ? AND value = ?",
+        (current_user["user_id"], value)
+    )
+    conn.commit()
+    conn.close()
+    return {"status": "deleted"}
 
 
 # ── Export (admin only) ──────────────────────────────────────
